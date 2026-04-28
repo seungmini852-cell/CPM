@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>공사예정공정표 (CPM)</title>
+</head>
+<body style="margin:0;padding:0;background:#f0f2f6;font-family:'Malgun Gothic','맑은 고딕',sans-serif">
+
+<!-- 잠금 화면 -->
+<div id="lockScreen" style="position:fixed;inset:0;background:#1a2332;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;">
+  <div style="background:#2C3E50;border-radius:16px;padding:48px 56px;box-shadow:0 8px 40px rgba(0,0,0,.4);text-align:center;min-width:320px">
+    <div style="font-size:48px;margin-bottom:16px">🔒</div>
+    <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:1.5px;margin-bottom:6px">공사예정공정표</div>
+    <div style="font-size:13px;color:#a8c4e8;margin-bottom:32px">CPM 공정표 자동생성 시스템</div>
+    <input id="pwInput" type="password" placeholder="비밀번호 입력"
+      style="width:100%;padding:13px 16px;border-radius:8px;border:2px solid #3D5166;background:#1a2332;color:#fff;font-size:16px;outline:none;text-align:center;font-family:'Malgun Gothic',sans-serif;letter-spacing:4px"
+      oninput="clearErr()" onkeydown="if(event.key==='Enter')tryLogin()"/>
+    <div id="pwErr" style="color:#FC8181;font-size:12px;margin-top:10px;min-height:18px"></div>
+    <button onclick="tryLogin()" style="width:100%;margin-top:8px;padding:13px;border-radius:8px;border:none;background:#3D7FBB;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:'Malgun Gothic',sans-serif;letter-spacing:1px"
+      onmouseover="this.style.background='#2F6A9E'" onmouseout="this.style.background='#3D7FBB'">입장하기</button>
+    <div style="margin-top:24px;font-size:11px;color:#4a5e78">권한이 없는 접근은 허용되지 않습니다</div>
+  </div>
+</div>
+
+<!-- 메인 앱 -->
+<div id="mainApp" style="display:none">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.app{background:#f0f2f6;font-family:'Malgun Gothic','맑은 고딕',sans-serif;color:#1a2540;padding:14px;font-size:13px}
+.hc{background:#2C3E50;border-radius:8px;padding:14px 18px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,.2)}
+.ht{font-size:15px;font-weight:700;color:#fff;letter-spacing:1px;margin-bottom:10px}
+.hf{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fl{font-size:10px;color:#a8c4e8;letter-spacing:1px;text-transform:uppercase;font-weight:600}
+.fi{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:4px;color:#fff;padding:6px 9px;font-size:12px;outline:none;font-family:inherit}
+.fi:focus{border-color:rgba(255,255,255,.7)}
+.fi-ro{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:4px;color:rgba(255,255,255,.75);padding:6px 9px;font-size:12px;cursor:default}
+.kr{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px}
+.kc{background:#fff;border:1px solid #d8e0ee;border-radius:8px;padding:10px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.kl{font-size:10px;color:#6a7b9a;margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.kv{font-size:17px;font-weight:700}
+.tc{background:#fff;border:1px solid #d8e0ee;border-radius:8px;overflow:hidden;margin-bottom:12px}
+.th{background:#2C3E50;padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+.tht{font-size:12px;font-weight:700;color:#fff}
+.thn{font-size:10px;color:rgba(255,255,255,.45)}
+.ts{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:1200px}
+thead th{padding:8px 5px;text-align:center;font-size:10px;color:#2C3E50;background:#E8ECF2;border-bottom:2px solid #C5CDD8;white-space:nowrap;font-weight:700}
+td{padding:4px 4px;border-bottom:1px solid #EAEEF4;text-align:center;vertical-align:middle;font-size:11px}
+tr.cat-hdr td{background:#3D5166;color:#fff;font-size:12px;font-weight:700;padding:6px 10px}
+tr.cat-hdr td:first-child{text-align:left;padding-left:10px}
+tr.cp{background:#FFF0F0}
+tr.cp td:first-child{border-left:3px solid #8B0000}
+tr:not(.cp):not(.cat-hdr):hover td{background:#F4F7FF}
+.ti{background:#fff;border:1px solid #C8D0DC;border-radius:3px;color:#1a2540;padding:3px 4px;font-size:11px;outline:none;width:100%;font-family:inherit}
+.ti:focus{border-color:#2C3E50}
+.ti-d{width:90px;font-size:10px}
+.cpc{color:#8B0000;font-weight:700}.cg{color:#5a7aaa;font-size:10px}
+.cpb{background:#FEE2E2;border:1px solid #FCA5A5;color:#8B0000;border-radius:3px;padding:1px 4px;font-size:9px;font-weight:700}
+.dp{color:#059669;font-weight:700}.dn{color:#8B0000;font-weight:700}
+.bh-cell{color:#2E7D32;font-weight:700;font-size:11px}
+.db{background:none;border:none;color:#aab5c5;cursor:pointer;font-size:13px;padding:0 2px}
+.db:hover{color:#E74C3C}
+.cb-btn{background:none;border:none;color:#a8c4e8;cursor:pointer;font-size:13px;margin-right:4px}
+.bb{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.btn{border-radius:6px;padding:7px 15px;font-size:12px;cursor:pointer;border:1.5px solid;font-family:inherit;font-weight:600}
+.ba{background:#fff;border-color:#2C3E50;color:#2C3E50}.ba:hover{background:#EEF2F7}
+.bd{background:#fff;border-color:#C0392B;color:#C0392B}.bd:hover{background:#FEF2F2}
+.bc{background:#fff;border-color:#27AE60;color:#27AE60}.bc:hover{background:#F0FFF4}
+.be{background:#2C3E50;border-color:#2C3E50;color:#fff;padding:8px 22px;font-size:13px;margin-left:auto;box-shadow:0 2px 8px rgba(44,62,80,.25)}.be:hover{background:#3D5166}.be:disabled{background:#8899aa;border-color:#8899aa;cursor:not-allowed}
+.sb{margin-top:10px;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;display:none}
+.sb.show{display:block}
+.sb.ok{background:#ECFDF5;border:1px solid #6EE7B7;color:#065F46}
+.sb.err{background:#FEF2F2;border:1px solid #FCA5A5;color:#7F1D1D}
+.sb.ld{background:#F5F7FA;border:1px solid #9AA3B2;color:#334155}
+.ib{background:#F5F7FA;border:1px solid #D1D5DB;border-radius:6px;padding:10px 14px;margin-top:10px;font-size:11px;color:#374151;line-height:1.8}
+.date-range{display:flex;align-items:center;gap:3px}
+.date-range span{color:#8899aa;font-size:10px}
+</style>
+
+<div class="app">
+<div class="hc">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div class="ht">공 사 예 정 공 정 표 (CPM)</div>
+    <button onclick="doLock()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#a8c4e8;border-radius:5px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit">🔒 잠금</button>
+  </div>
+  <div class="hf">
+    <div class="fg"><div class="fl">현장명</div><input class="fi" id="pn" value="점동광산 수질정화시설 설치공사" style="width:200px"></div>
+    <div class="fg"><div class="fl">착공일</div><input class="fi" type="date" id="sd" value="2025-04-01" oninput="onSdChange()"></div>
+    <div class="fg"><div class="fl">준공일 (자동)</div><input class="fi-ro" id="jgDisp" value="—" style="width:110px" readonly></div>
+    <div class="fg"><div class="fl">공사번호</div><input class="fi" id="pc" value="점동-2025-001" style="width:115px"></div>
+    <div class="fg"><div class="fl">작성자</div><input class="fi" id="au" value="홍길동" style="width:80px"></div>
+  </div>
+</div>
+<div class="kr">
+  <div class="kc"><div class="kl">총 공사기간</div><div class="kv" id="kD" style="color:#2C3E50">—</div></div>
+  <div class="kc"><div class="kl">준공일</div><div class="kv" id="kJ" style="color:#2C3E50;font-size:13px">—</div></div>
+  <div class="kc"><div class="kl">주공정 (CP)</div><div class="kv" id="kC" style="color:#8B0000">—</div></div>
+  <div class="kc"><div class="kl">총 공사금액</div><div class="kv" id="kM" style="color:#5B4FCF;font-size:13px">—</div></div>
+  <div class="kc"><div class="kl">계획 / 실시</div><div class="kv" id="kPA" style="color:#374151;font-size:13px">—</div></div>
+</div>
+<div class="tc">
+  <div class="th">
+    <span class="tht">공종 입력표 — 대분류별 그룹 · 날짜 선택 → 일수 자동계산 · 보할% 자동계산</span>
+    <span class="thn">★ 빨간 행 = 주공정 (TF=0)</span>
+  </div>
+  <div class="ts"><table>
+    <thead><tr>
+      <th style="width:22px">No</th>
+      <th style="width:80px;background:#E0E5EC">대분류</th>
+      <th style="width:115px;text-align:left;padding-left:5px">공종명</th>
+      <th style="width:42px;background:#E0E5EC">단위</th>
+      <th style="width:52px;background:#E0E5EC">수량</th>
+      <th style="width:56px">선행공종</th>
+      <th style="width:190px">착수일 ~ 완료일</th>
+      <th style="width:36px">일수</th>
+      <th style="width:72px;background:#E4E8EE">공사금액<br><span style="font-size:8px;font-weight:400">(천원)</span></th>
+      <th style="width:46px;background:#E4EBE4">보할(%)</th>
+      <th style="width:30px">ES</th><th style="width:30px">EF</th>
+      <th style="width:30px">TF</th>
+      <th style="width:40px">계획%</th><th style="width:40px">실시%</th>
+      <th style="width:34px">편차</th>
+      <th style="width:46px">주공정</th>
+      <th style="width:22px"></th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+</div>
+<div class="bb">
+  <button class="btn ba" onclick="addRow()">+ 공종 추가</button>
+  <button class="btn bc" onclick="addCat()">+ 대분류 추가</button>
+  <button class="btn bd" onclick="delLast()">✕ 마지막 삭제</button>
+  <button class="btn be" id="xlBtn" onclick="buildExcel()">▼ 엑셀 공정표 출력</button>
+</div>
+<div class="sb" id="stBar"></div>
+<div class="ib"><strong>보할(%)</strong> = 해당공종금액 ÷ 총금액 × 100 (자동) &nbsp;|&nbsp; <strong>엑셀</strong>: 무채색 간트바 + 당기공정률 + S-Curve + 화살표(이중선)</div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+// ── 잠금 ─────────────────────────────────────────────────────────────────────
+function simpleHash(s){let h=0;for(const c of s)h=(Math.imul(31,h)+c.charCodeAt(0))|0;return h;}
+const CORRECT=simpleHash('418912');
+let failCount=0;
+function tryLogin(){
+  const v=document.getElementById('pwInput').value;
+  if(simpleHash(v)===CORRECT){
+    document.getElementById('lockScreen').style.display='none';
+    document.getElementById('mainApp').style.display='block';
+    sessionStorage.setItem('cpm_auth','1');
+    render();
+  } else {
+    failCount++;
+    document.getElementById('pwErr').textContent=`비밀번호가 틀렸습니다 (${failCount}회)`;
+    document.getElementById('pwInput').value='';
+    document.getElementById('pwInput').focus();
+    if(failCount>=5){
+      const inp=document.getElementById('pwInput'),btn=document.querySelector('#lockScreen button');
+      inp.disabled=true;btn.disabled=true;
+      document.getElementById('pwErr').textContent='5회 실패 — 10초 후 재시도';
+      setTimeout(()=>{failCount=0;inp.disabled=false;btn.disabled=false;document.getElementById('pwErr').textContent='';},10000);
+    }
+  }
+}
+function clearErr(){document.getElementById('pwErr').textContent='';}
+function doLock(){
+  sessionStorage.removeItem('cpm_auth');
+  document.getElementById('mainApp').style.display='none';
+  document.getElementById('lockScreen').style.display='flex';
+  document.getElementById('pwInput').value='';
+  setTimeout(()=>document.getElementById('pwInput').focus(),100);
+}
+if(sessionStorage.getItem('cpm_auth')==='1'){
+  document.getElementById('lockScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+}
+
+let T=[
+  {cat:'부지계획',n:'주요자재',unit:'식',qty:1,p:'',ds:'2025-04-01',de:'2025-04-06',d:5,amt:0,pl:100,ac:100},
+  {cat:'부지계획',n:'토공',unit:'M3',qty:12863,p:'1',ds:'2025-04-06',de:'2025-04-13',d:7,amt:0,pl:100,ac:100},
+  {cat:'부지계획',n:'우수공',unit:'M',qty:184,p:'1',ds:'2025-04-06',de:'2025-04-09',d:3,amt:0,pl:100,ac:100},
+  {cat:'관로공',n:'터파기',unit:'M3',qty:500,p:'3',ds:'2025-04-09',de:'2025-04-19',d:10,amt:0,pl:100,ac:95},
+  {cat:'관로공',n:'흙막이 공사',unit:'M2',qty:200,p:'3',ds:'2025-04-09',de:'2025-04-17',d:8,amt:0,pl:100,ac:100},
+  {cat:'관로공',n:'잡석 다짐',unit:'M3',qty:80,p:'4,5',ds:'2025-04-19',de:'2025-04-22',d:3,amt:0,pl:100,ac:100},
+  {cat:'관로공',n:'버림 콘크리트',unit:'M3',qty:30,p:'6',ds:'2025-04-22',de:'2025-04-24',d:2,amt:0,pl:100,ac:100},
+  {cat:'정화시설공',n:'방수공사',unit:'M2',qty:350,p:'7',ds:'2025-04-24',de:'2025-04-28',d:4,amt:0,pl:90,ac:85},
+  {cat:'정화시설공',n:'기초 철근 배근',unit:'TON',qty:12,p:'8',ds:'2025-04-28',de:'2025-05-03',d:5,amt:0,pl:85,ac:78},
+  {cat:'정화시설공',n:'기초 콘크리트 타설',unit:'M3',qty:90,p:'9',ds:'2025-05-03',de:'2025-05-06',d:3,amt:0,pl:70,ac:70},
+  {cat:'정화시설공',n:'지하 구조물 철근',unit:'TON',qty:25,p:'10',ds:'2025-05-06',de:'2025-05-13',d:7,amt:0,pl:55,ac:48},
+  {cat:'정화시설공',n:'지하 구조물 거푸집',unit:'M2',qty:450,p:'11',ds:'2025-05-13',de:'2025-05-18',d:5,amt:0,pl:35,ac:28},
+  {cat:'정화시설공',n:'지하 구조물 콘크리트',unit:'M3',qty:150,p:'12',ds:'2025-05-18',de:'2025-05-22',d:4,amt:0,pl:15,ac:12},
+  {cat:'구조물공',n:'지상 구조물 철근',unit:'TON',qty:18,p:'13',ds:'2025-05-22',de:'2025-05-30',d:8,amt:0,pl:0,ac:0},
+  {cat:'구조물공',n:'지상 구조물 거푸집',unit:'M2',qty:380,p:'14',ds:'2025-05-30',de:'2025-06-05',d:6,amt:0,pl:0,ac:0},
+  {cat:'구조물공',n:'지상 구조물 콘크리트',unit:'M3',qty:120,p:'15',ds:'2025-06-05',de:'2025-06-10',d:5,amt:0,pl:0,ac:0},
+  {cat:'배관공',n:'배관 (오염수 유입)',unit:'M',qty:85,p:'13',ds:'2025-05-22',de:'2025-05-30',d:8,amt:0,pl:0,ac:0},
+  {cat:'배관공',n:'배관 (처리수 방류)',unit:'M',qty:65,p:'16',ds:'2025-06-10',de:'2025-06-16',d:6,amt:0,pl:0,ac:0},
+  {cat:'기계설비',n:'기계설비 (펌프류)',unit:'식',qty:2,p:'16,17',ds:'2025-06-10',de:'2025-06-17',d:7,amt:0,pl:0,ac:0},
+  {cat:'기계설비',n:'기계설비 (여과장치)',unit:'식',qty:1,p:'19',ds:'2025-06-17',de:'2025-06-27',d:10,amt:0,pl:0,ac:0},
+  {cat:'전기공',n:'전기공사 (동력)',unit:'식',qty:1,p:'16',ds:'2025-06-10',de:'2025-06-18',d:8,amt:0,pl:0,ac:0},
+  {cat:'전기공',n:'전기공사 (계측제어)',unit:'식',qty:1,p:'21',ds:'2025-06-18',de:'2025-06-28',d:10,amt:0,pl:0,ac:0},
+  {cat:'마무리공',n:'토목 마감공사',unit:'식',qty:1,p:'16,18',ds:'2025-06-16',de:'2025-06-21',d:5,amt:0,pl:0,ac:0},
+  {cat:'마무리공',n:'조경공사',unit:'M2',qty:600,p:'23',ds:'2025-06-21',de:'2025-06-28',d:7,amt:0,pl:0,ac:0},
+  {cat:'시운전',n:'시운전',unit:'식',qty:1,p:'20,22',ds:'2025-06-28',de:'2025-07-03',d:5,amt:0,pl:0,ac:0},
+  {cat:'시운전',n:'성능시험',unit:'식',qty:1,p:'25',ds:'2025-07-03',de:'2025-07-06',d:3,amt:0,pl:0,ac:0},
+  {cat:'마무리공',n:'준공청소',unit:'식',qty:1,p:'24,26',ds:'2025-07-06',de:'2025-07-08',d:2,amt:0,pl:0,ac:0},
+  {cat:'마무리공',n:'가설물 철거',unit:'식',qty:1,p:'27',ds:'2025-07-08',de:'2025-07-11',d:3,amt:0,pl:0,ac:0},
+  {cat:'마무리공',n:'부지정리',unit:'M2',qty:800,p:'28',ds:'2025-07-11',de:'2025-07-13',d:2,amt:0,pl:0,ac:0},
+  {cat:'마무리공',n:'준공',unit:'식',qty:1,p:'29',ds:'2025-07-13',de:'2025-07-14',d:1,amt:0,pl:0,ac:0},
+];
+let collapsedCats=new Set();
+
+function pp(s){if(!s||!s.trim())return[];return s.split(',').map(x=>parseInt(x.trim())).filter(n=>!isNaN(n)&&n>=1&&n<=T.length);}
+function cpm(){
+  const n=T.length,es=Array(n).fill(0),ef=Array(n).fill(0);
+  for(let i=0;i<n;i++){const pr=pp(T[i].p);es[i]=pr.length?Math.max(...pr.map(x=>ef[x-1]||0)):0;ef[i]=es[i]+(T[i].d||1);}
+  const tot=Math.max(...ef);
+  const sc=Array.from({length:n},()=>[]);
+  for(let i=0;i<n;i++)for(const x of pp(T[i].p))sc[x-1].push(i);
+  const lf=Array(n).fill(tot),ls=Array(n).fill(tot);
+  for(let i=n-1;i>=0;i--){lf[i]=sc[i].length?Math.min(...sc[i].map(s=>ls[s])):tot;ls[i]=lf[i]-(T[i].d||1);}
+  const tf=es.map((e,i)=>lf[i]-ef[i]);
+  return{es,ef,ls,lf,tf,cp:tf.map(f=>f===0),tot};
+}
+function fds(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function addDays(b,n){const d=new Date(b);d.setDate(d.getDate()+n);return d;}
+function diffDays(a,b){return Math.max(1,Math.round((new Date(b)-new Date(a))/86400000));}
+function getTotAmt(){return T.reduce((s,t)=>s+(t.amt||0),0);}
+function getBh(i){const ta=getTotAmt();return ta>0?(T[i].amt||0)/ta*100:0;}
+function onSdChange(){
+  const sd=document.getElementById('sd').value;if(!sd)return;
+  const R=cpm(),sdd=new Date(sd);
+  T.forEach((t,i)=>{t.ds=fds(addDays(sdd,R.es[i]));t.de=fds(addDays(sdd,R.ef[i]));});
+  render();
+}
+function onDateChange(i,f,v){
+  T[i][f]=v;
+  if(T[i].ds&&T[i].de&&T[i].de>T[i].ds)T[i].d=diffDays(T[i].ds,T[i].de);
+  rc();
+}
+function render(){
+  const R=cpm(),tb=document.getElementById('tbody');tb.innerHTML='';
+  [...new Set(T.map(t=>t.cat))].forEach(cat=>{
+    const items=T.map((t,i)=>({t,i})).filter(({t})=>t.cat===cat);
+    if(!items.length)return;
+    const col=collapsedCats.has(cat);
+    const tr=document.createElement('tr');tr.className='cat-hdr';
+    tr.innerHTML=`<td colspan="18"><button class="cb-btn" onclick="toggleCat('${cat.replace(/'/g,"\\'")}')"> ${col?'▶':'▼'} </button> ${cat} <span style="font-size:10px;opacity:.6">(${items.length}개)</span></td>`;
+    tb.appendChild(tr);
+    if(col)return;
+    items.forEach(({t,i})=>{
+      const icp=R.cp[i],diff=t.ac-t.pl,sg=diff>=0?'+':'',bh=getBh(i);
+      const tr2=document.createElement('tr');if(icp)tr2.className='cp';
+      tr2.innerHTML=`<td style="color:#8899bb;font-size:10px;font-weight:700">${i+1}</td>
+<td><input class="ti" value="${t.cat}" style="font-size:10px" oninput="T[${i}].cat=this.value;render()"/></td>
+<td style="text-align:left;padding-left:3px"><input class="ti" value="${t.n}" oninput="T[${i}].n=this.value"/></td>
+<td><input class="ti" value="${t.unit||''}" style="width:38px;text-align:center;font-size:10px" oninput="T[${i}].unit=this.value"/></td>
+<td><input class="ti" type="number" min="0" value="${t.qty||0}" style="width:48px;text-align:right;font-size:10px" oninput="T[${i}].qty=+this.value||0"/></td>
+<td><input class="ti" value="${t.p}" placeholder="없음" style="font-size:10px" oninput="T[${i}].p=this.value;rc()"/></td>
+<td><div class="date-range"><input class="ti ti-d" type="date" value="${t.ds||''}" oninput="onDateChange(${i},'ds',this.value)"/><span>~</span><input class="ti ti-d" type="date" value="${t.de||''}" oninput="onDateChange(${i},'de',this.value)"/></div></td>
+<td style="font-size:10px;color:#445566;font-weight:600" id="dd${i}">${t.d}</td>
+<td><input class="ti" type="number" min="0" value="${t.amt||0}" style="text-align:right;color:#2C3E50;font-weight:600;font-size:10px" oninput="T[${i}].amt=+this.value||0;updBh();uk()"/></td>
+<td class="bh-cell" id="bh${i}">${bh.toFixed(2)}%</td>
+<td class="${icp?'cpc':'cg'}" id="e${i}">${R.es[i]}</td>
+<td class="${icp?'cpc':'cg'}" id="f${i}">${R.ef[i]}</td>
+<td class="${icp?'cpc':'cg'}" id="tf${i}">${R.tf[i]}</td>
+<td><input class="ti" type="number" min="0" max="100" value="${t.pl}" style="width:36px;text-align:center;font-size:10px" oninput="T[${i}].pl=Math.min(100,Math.max(0,+this.value));ud(${i});uk()"/></td>
+<td><input class="ti" type="number" min="0" max="100" value="${t.ac}" style="width:36px;text-align:center;font-size:10px" oninput="T[${i}].ac=Math.min(100,Math.max(0,+this.value));ud(${i});uk()"/></td>
+<td class="${diff>=0?'dp':'dn'}" id="d${i}" style="font-size:10px">${sg}${diff}</td>
+<td id="cb${i}" style="font-size:10px">${icp?'<span class="cpb">★CP</span>':''}</td>
+<td><button class="db" onclick="delRow(${i})">✕</button></td>`;
+      tb.appendChild(tr2);
+    });
+  });
+  uk(R.tot,R.cp.filter(Boolean).length);
+  const sd=document.getElementById('sd').value;
+  if(sd){const jg=fds(addDays(new Date(sd),cpm().tot));document.getElementById('jgDisp').value=jg;document.getElementById('kJ').textContent=jg.slice(5).replace('-','/');}
+}
+function toggleCat(c){if(collapsedCats.has(c))collapsedCats.delete(c);else collapsedCats.add(c);render();}
+function rc(){
+  const R=cpm();
+  T.forEach((_,i)=>{
+    const icp=R.cp[i];
+    [{id:`e${i}`,k:'es'},{id:`f${i}`,k:'ef'},{id:`tf${i}`,k:'tf'}].forEach(({id,k})=>{
+      const el=document.getElementById(id);if(el){el.textContent=R[k][i];el.className=icp?'cpc':'cg';}
+    });
+    const cb=document.getElementById('cb'+i);if(cb)cb.innerHTML=icp?'<span class="cpb">★CP</span>':'';
+    const tr=document.getElementById('e'+i)?.closest('tr');if(tr)tr.className=icp?'cp':'';
+    const dd=document.getElementById('dd'+i);if(dd)dd.textContent=T[i].d;
+  });
+  uk(R.tot,R.cp.filter(Boolean).length);
+  const sd=document.getElementById('sd').value;
+  if(sd){const jg=fds(addDays(new Date(sd),cpm().tot));document.getElementById('jgDisp').value=jg;document.getElementById('kJ').textContent=jg.slice(5).replace('-','/');}
+}
+function updBh(){T.forEach((_,i)=>{const el=document.getElementById('bh'+i);if(el)el.textContent=getBh(i).toFixed(2)+'%';});}
+function ud(i){const d=T[i].ac-T[i].pl,s=d>=0?'+':'';const el=document.getElementById('d'+i);if(el){el.textContent=s+d;el.className=d>=0?'dp':'dn';}}
+function uk(tot,cpn){
+  if(tot===undefined){const R=cpm();tot=R.tot;cpn=R.cp.filter(Boolean).length;}
+  const ap=T.reduce((s,t)=>s+t.pl,0)/T.length,aa=T.reduce((s,t)=>s+t.ac,0)/T.length,ta=getTotAmt();
+  document.getElementById('kD').textContent=tot+'일';document.getElementById('kC').textContent=cpn+'개';
+  document.getElementById('kPA').textContent=ap.toFixed(1)+'% / '+aa.toFixed(1)+'%';
+  const m=document.getElementById('kM');
+  if(ta>=100000)m.textContent=(ta/100000).toFixed(2)+'억원';
+  else if(ta>0)m.textContent=ta.toLocaleString()+'천원';
+  else m.textContent='미입력';
+}
+function addRow(){const cats=[...new Set(T.map(t=>t.cat))];T.push({cat:cats[cats.length-1]||'신규',n:'신규 공종',unit:'식',qty:1,p:'',ds:'',de:'',d:1,amt:0,pl:0,ac:0});render();}
+function addCat(){const name=prompt('새 대분류:','신규대분류');if(!name)return;T.push({cat:name,n:'신규 공종',unit:'식',qty:1,p:'',ds:'',de:'',d:1,amt:0,pl:0,ac:0});render();}
+function delRow(i){if(T.length<=1){alert('최소 1개');return;}if(!confirm(`"${T[i].n}" 삭제?`))return;T.splice(i,1);render();}
+function delLast(){if(T.length<=1){alert('최소 1개');return;}if(!confirm(`"${T[T.length-1].n}" 삭제?`))return;T.pop();render();}
+function setSt(m,t){const el=document.getElementById('stBar');el.textContent=m;el.className='sb show '+t;}
+
+async function buildExcel(){
+  const btn=document.getElementById('xlBtn');
+  btn.disabled=true;setSt('공정표 생성 중...','ld');
+  await new Promise(r=>setTimeout(r,20));
+  try{const res=await genXlsx();btn.disabled=false;setSt(`✓ 완료 (CP ${res.cp}개 / ${res.tot}일 / 화살표 ${res.arrows}개 / S-Curve ${res.sc}선)`,'ok');}
+  catch(e){btn.disabled=false;setSt('오류: '+e.message,'err');console.error(e);}
+}
+
+const xe=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const ac8=c=>'FF'+c;
+function cr(r,c){let s='',n=c+1;while(n>0){n--;s=String.fromCharCode(65+(n%26))+s;n=Math.floor(n/26);}return s+(r+1);}
+
+async function genXlsx(){
+  const R=cpm();const{es,ef,ls,lf,tf,cp,tot}=R;const N=T.length;
+  const sdEl=document.getElementById('sd').value,sd=new Date(sdEl);
+  const pn=document.getElementById('pn').value,pc=document.getElementById('pc').value,au=document.getElementById('au').value,today=new Date();
+  const PERIOD=5,NP=Math.ceil(tot/PERIOD);
+  const periods=[];for(let p=0;p<NP;p++){const d=new Date(sd);d.setDate(d.getDate()+p*PERIOD);periods.push(d);}
+  const jgDate=addDays(sd,tot),totAmt=getTotAmt(),Wt=T.reduce((s,t)=>s+t.d,0)||1;
+  const LC=14,TC=LC+NP+1;
+  const R_T=0,R_I=1,R_Y=2,R_M=3,R_D=4,R_DA=5;
+  const R_P=R_DA+N,R_C=R_P+1,R_L=R_C+1;
+
+  // 가중치 & 일별
+  const daily=Array(tot).fill(0);
+  T.forEach((t,i)=>{const w=totAmt>0?(t.amt||0)/totAmt:t.d/Wt;const r=w*100/Math.max(t.d,1);for(let d=es[i];d<Math.min(ef[i],tot);d++)daily[d]+=r;});
+  const dangki=[];for(let p=0;p<NP;p++){dangki.push(daily.slice(p*PERIOD,Math.min((p+1)*PERIOD,tot)).reduce((a,b)=>a+b,0));}
+  let cumAcc=0;const cumPct=dangki.map(v=>{cumAcc+=v;return Math.min(cumAcc,100);});
+
+  // 스타일 (간결하게)
+  const fontsXml=`<fonts count="12">
+<font><sz val="9"/><color rgb="FF111111"/><name val="Malgun Gothic"/></font>
+<font><b/><sz val="13"/><color rgb="FFFFFFFF"/><name val="Malgun Gothic"/></font>
+<font><sz val="8"/><color rgb="FF111111"/><name val="Malgun Gothic"/></font>
+<font><b/><sz val="9"/><color rgb="FFFFFFFF"/><name val="Malgun Gothic"/></font>
+<font><b/><sz val="9"/><color rgb="FF8B0000"/><name val="Malgun Gothic"/></font>
+<font><sz val="9"/><color rgb="FF222222"/><name val="Malgun Gothic"/></font>
+<font><b/><sz val="8"/><color rgb="FFFFFFFF"/><name val="Malgun Gothic"/></font>
+<font><sz val="7"/><color rgb="FF111111"/><name val="Malgun Gothic"/></font>
+<font><b/><sz val="7"/><color rgb="FF111111"/><name val="Malgun Gothic"/></font>
+<font><sz val="8"/><color rgb="FF333333"/><name val="Malgun Gothic"/></font>
+<font><sz val="9"/><color rgb="FF1B5E20"/><name val="Malgun Gothic"/></font>
+<font><b/><sz val="9"/><color rgb="FF333333"/><name val="Malgun Gothic"/></font>
+</fonts>`;
+  const fillC=['none','gray125','2C3E50','F0F2F5','404040','333333','555555','777777','FFF0F0','F2F2F2','FFFFFF','6B2222','2A4E6B','E0E0E0','EBEBEB','AAAAAA','888888','F5F5F0','3D5166','D0D4DC','D8E4D8','EEEEEE','E8EEE8'];
+  const fillsXml=`<fills count="${fillC.length}">${fillC.map((c,i)=>{
+    if(i===0)return'<fill><patternFill patternType="none"/></fill>';
+    if(i===1)return'<fill><patternFill patternType="gray125"/></fill>';
+    return`<fill><patternFill patternType="solid"><fgColor rgb="${ac8(c)}"/><bgColor indexed="64"/></patternFill></fill>`;
+  }).join('')}</fills>`;
+  function bds(st,col){const s=`style="${st}"><color rgb="${ac8(col)}"/>`;return`<left ${s}</left><right ${s}</right><top ${s}</top><bottom ${s}</bottom>`;}
+  const bordersXml=`<borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border>${bds('thin','AAAAAA')}<diagonal/></border><border>${bds('medium','2C3E50')}<diagonal/></border></borders>`;
+  const ha2xl={c:'center',l:'left',r:'right'};
+  const xfDefs=[
+    [0,10,1,'c','c',0,0],[0,9,1,'c','c',0,0],[4,8,1,'c','c',0,0],
+    [1,2,2,'c','c',0,0],[2,3,1,'l','c',0,0],[3,4,2,'c','c',1,0],
+    [3,5,2,'c','c',0,0],[3,6,2,'c','c',0,0],[5,7,1,'c','c',0,0],
+    [5,9,1,'l','c',1,0],[5,10,1,'l','c',1,0],[4,8,1,'l','c',1,0],
+    [5,9,1,'c','c',0,0],[5,10,1,'c','c',0,0],[4,8,1,'c','c',0,0],
+    [0,11,1,'c','c',0,0],[0,12,1,'c','c',0,0],[0,13,1,'c','c',0,0],[0,14,1,'c','c',0,0],
+    [6,15,2,'c','c',0,0],[6,16,2,'c','c',0,0],[9,17,1,'l','c',0,0],
+    [7,13,1,'c','c',0,164],[8,16,1,'c','c',0,164],
+    [5,9,1,'l','c',0,0],[5,10,1,'l','c',0,0],[4,8,1,'l','c',0,0],
+    [3,19,2,'c','c',1,0],[3,20,2,'c','c',1,0],
+    [5,21,1,'r','c',0,165],[5,10,1,'r','c',0,165],[4,8,1,'r','c',0,165],
+    [10,22,1,'c','c',0,164],[10,10,1,'c','c',0,164],[4,8,1,'c','c',0,164],
+    [6,11,1,'c','c',0,164],[6,12,1,'c','c',0,164],
+    [3,18,2,'l','c',0,0],[11,10,1,'c','c',0,0],
+  ];
+  const cellXfsXml=`<cellXfs count="${xfDefs.length}">${xfDefs.map(([fi,fili,bi,ha,va,wr,nf])=>`<xf numFmtId="${nf}" fontId="${fi}" fillId="${fili}" borderId="${bi}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${ha2xl[ha]}" vertical="${ha2xl[va]}"${wr?' wrapText="1"':''}/></xf>`).join('')}</cellXfs>`;
+  const stylesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="0.00"/><numFmt numFmtId="165" formatCode="#,##0"/></numFmts>${fontsXml}${fillsXml}${bordersXml}<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>${cellXfsXml}<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+
+  const S={EVN:0,ODD:1,CP:2,TTL:3,INF:4,HDR:5,YR:6,MO:7,DT:8,ONM:9,ENM:10,CNM:11,OS2:12,ES2:13,CS2:14,BCP:15,BNM:16,EOD:17,EEV:18,DKH:19,CMH:20,LG:21,DKD:22,CMD:23,ODT:24,EDT:25,CDT:26,AMH:27,BHH:28,AMO:29,AME:30,AMC:31,BHO:32,BHE:33,BHC:34,BCV:35,BNV:36,CAT:37,PCT:38};
+  const ssArr=[],ssMap=new Map();
+  function ssi(s){const k=String(s);if(!ssMap.has(k)){ssMap.set(k,ssArr.length);ssArr.push(k);}return ssMap.get(k);}
+  const ssXml=()=>`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${ssArr.length}" uniqueCount="${ssArr.length}">${ssArr.map(s=>`<si><t xml:space="preserve">${xe(s)}</t></si>`).join('')}</sst>`;
+  const rows={},merges=[];
+  function cell(r,c,v,si,tp){
+    if(!rows[r])rows[r]={};const ref=cr(r,c);let x;
+    if(tp==='n'&&v!=null)x=`<c r="${ref}" s="${si}"><v>${v}</v></c>`;
+    else if(tp==='s'&&v!=null&&v!==''){const idx=ssi(v);x=`<c r="${ref}" s="${si}" t="s"><v>${idx}</v></c>`;}
+    else x=`<c r="${ref}" s="${si}"/>`;
+    rows[r][c]=x;
+  }
+  function mg(r1,c1,r2,c2){if(r1!==r2||c1!==c2)merges.push(`<mergeCell ref="${cr(r1,c1)}:${cr(r2,c2)}"/>`);}
+
+  // 제목/정보
+  cell(R_T,0,'공  사  예  정  공  정  표',S.TTL,'s');mg(R_T,0,R_T,TC-1);for(let c=1;c<TC;c++)cell(R_T,c,'',S.TTL,'');
+  const amtStr=totAmt>0?`  총공사금액:${totAmt.toLocaleString()}천원(${(totAmt/100000).toFixed(2)}억)  `:'  ';
+  const infoTxt=`공사명: ${pn}  /  ${pc}  /  착공: ${fds(sd)}  /  준공: ${fds(jgDate)}  /  ${tot}일  /  CP: ${cp.filter(Boolean).length}개${amtStr}/  작성: ${au}  /  출력: ${fds(today)}`;
+  cell(R_I,0,infoTxt,S.INF,'s');mg(R_I,0,R_I,TC-1);for(let c=1;c<TC;c++)cell(R_I,c,'',S.INF,'');
+  const HL=['No','대분류','공  종  명','단위','수량','공사금액\n(천원)','보할\n(%)','소요\n일수','ES\n(일)','EF\n(일)','LS\n(일)','LF\n(일)','TF\n(여유)','주  공  정\n(착수~완료)'];
+  for(let c=0;c<LC;c++){cell(R_Y,c,HL[c],S.HDR,'s');mg(R_Y,c,R_D,c);cell(R_M,c,'',S.HDR,'');cell(R_D,c,'',S.HDR,'');}
+  const yg={};periods.forEach((d,p)=>{const yr=d.getFullYear();if(!yg[yr])yg[yr]=[];yg[yr].push(p);});
+  for(const[yr,ps]of Object.entries(yg)){const sc=LC+ps[0],ec=LC+ps[ps.length-1];cell(R_Y,sc,`${yr}년`,S.YR,'s');for(let c=sc+1;c<=ec;c++)cell(R_Y,c,'',S.YR,'');if(sc<ec)mg(R_Y,sc,R_Y,ec);}
+  const mg2={};periods.forEach((d,p)=>{const k=`${d.getFullYear()}-${d.getMonth()}`;if(!mg2[k])mg2[k]=[];mg2[k].push(p);});
+  for(const[,ps]of Object.entries(mg2)){const d=periods[ps[0]],sc=LC+ps[0],ec=LC+ps[ps.length-1];cell(R_M,sc,`${d.getMonth()+1}월`,S.MO,'s');for(let c=sc+1;c<=ec;c++)cell(R_M,c,'',S.MO,'');if(sc<ec)mg(R_M,sc,R_M,ec);}
+  periods.forEach((d,p)=>cell(R_D,LC+p,`${d.getMonth()+1}/${d.getDate()}`,S.DT,'s'));
+  cell(R_Y,TC-1,'비\n고',S.HDR,'s');mg(R_Y,TC-1,R_D,TC-1);cell(R_M,TC-1,'',S.HDR,'');cell(R_D,TC-1,'',S.HDR,'');
+
+  // 공종 데이터
+  T.forEach((t,i)=>{
+    const r=R_DA+i,icp=cp[i],odd=i%2===1;
+    const sC=icp?S.CP:(odd?S.ODD:S.EVN),sN=icp?S.CNM:(odd?S.ONM:S.ENM),s2=icp?S.CS2:(odd?S.OS2:S.ES2);
+    const sD=icp?S.CDT:(odd?S.ODT:S.EDT),sA=icp?S.AMC:(odd?S.AMO:S.AME),sB=icp?S.BHC:(odd?S.BHO:S.BHE);
+    const bh=totAmt>0?(t.amt||0)/totAmt*100:0;
+    cell(r,0,i+1,sC,'n');cell(r,1,t.cat||'',s2,'s');cell(r,2,(icp?'★ ':'')+t.n,sN,'s');
+    cell(r,3,t.unit||'',s2,'s');cell(r,4,t.qty||0,s2,'n');
+    cell(r,5,t.amt||0,sA,'n');cell(r,6,+bh.toFixed(2),sB,'n');cell(r,7,t.d,sC,'n');
+    cell(r,8,es[i],icp?S.CP:sC,'n');cell(r,9,ef[i],icp?S.CP:sC,'n');
+    cell(r,10,ls[i],sC,'n');cell(r,11,lf[i],sC,'n');cell(r,12,tf[i],icp?S.CP:sC,'n');
+    const esD=fds(addDays(sd,es[i])),efD=fds(addDays(sd,ef[i]));
+    cell(r,13,(icp?'★ ':'')+esD+'~'+efD,sD,'s');
+    const w_i=totAmt>0?(t.amt||0)/totAmt:t.d/Wt;
+    for(let p=0;p<NP;p++){
+      const ov=Math.min(ef[i],(p+1)*PERIOD)-Math.max(es[i],p*PERIOD);
+      if(ov>0){const v=w_i*100*ov/t.d;const vv=v>=0.01?+v.toFixed(2):null;cell(r,LC+p,vv,icp?S.BCV:S.BNV,vv?'n':'');}
+      else cell(r,LC+p,'',p%2===0?S.EOD:S.EEV,'');
+    }
+    cell(r,TC-1,'',sC,'');
+  });
+  // 우측 % 눈금
+  for(let pv=10;pv>=1;pv--){
+    const ri=R_DA+Math.round((1-pv/10)*(N-1));
+    if(ri>=R_DA&&ri<R_DA+N)cell(ri,TC-1,`${pv*10}%`,S.PCT,'s');
+  }
+  // 당기/누계/범례
+  cell(R_P,0,'당   기   공   정   률   (%)',S.DKH,'s');mg(R_P,0,R_P,LC-1);for(let c=1;c<LC;c++)cell(R_P,c,'',S.DKH,'');
+  for(let p=0;p<NP;p++){const sv=dangki[p];cell(R_P,LC+p,sv>0?+sv.toFixed(2):null,S.DKD,sv>0?'n':'');}
+  cell(R_P,TC-1,'',S.DKH,'');
+  cell(R_C,0,'누   계   공   정   률   (%)',S.CMH,'s');mg(R_C,0,R_C,LC-1);for(let c=1;c<LC;c++)cell(R_C,c,'',S.CMH,'');
+  for(let p=0;p<NP;p++){const cv=cumPct[p];cell(R_C,LC+p,cv>0?+cv.toFixed(2):null,S.CMD,cv>0?'n':'');}
+  cell(R_C,TC-1,'',S.CMH,'');
+  const lt='【범례】■ 주공정CP(어두운적색) ■ 일반공정(어두운청색) 붉은실선=S-Curve(누계%) 간트수치=당기공정률(%) 공사금액단위:천원 보할=각공종금액÷총금액×100';
+  cell(R_L,0,lt,S.LG,'s');mg(R_L,0,R_L,TC-1);for(let c=1;c<TC;c++)cell(R_L,c,'',S.LG,'');
+
+  // Sheet XML
+  const rowHts={[R_T]:24,[R_I]:14,[R_Y]:16,[R_M]:16,[R_D]:14};
+  for(let i=0;i<N;i++)rowHts[R_DA+i]=18;
+  rowHts[R_P]=14;rowHts[R_C]=14;rowHts[R_L]=13;
+  const cwArr=[3,11,20,5,7,10,6,5,5,5,5,5,5,22,...Array(NP).fill(4.5),5];
+  let colsXml='<cols>';cwArr.forEach((w,i)=>colsXml+=`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`);colsXml+='</cols>';
+  let sdXml='<sheetData>';
+  for(const ri of Object.keys(rows).map(Number).sort((a,b)=>a-b)){
+    const ht=rowHts[ri];const ha=ht?` ht="${ht}" customHeight="1"`:'';
+    sdXml+=`<row r="${ri+1}"${ha}>${Object.keys(rows[ri]).map(Number).sort((a,b)=>a-b).map(ci=>rows[ri][ci]).join('')}</row>`;
+  }
+  sdXml+='</sheetData>';
+  let mrgXml='';if(merges.length>0)mrgXml=`<mergeCells count="${merges.length}">${merges.join('')}</mergeCells>`;
+  const NS='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const sheetXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><selection activeCell="A1" sqref="A1"/></sheetView></sheetViews>${colsXml}${sdXml}${mrgXml}<pageMargins left="0.39" right="0.39" top="0.49" bottom="0.49" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape" fitToPage="1" fitToWidth="1" fitToHeight="0"/><drawing r:id="rId_draw1"/></worksheet>`;
+
+  // ── Drawing ────────────────────────────────────────────────────────────────
+  const NS_XDR='http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing';
+  const NS_A='http://schemas.openxmlformats.org/drawingml/2006/main';
+  const MDW=7;
+  function cemu(w){return((Math.floor(w*MDW+5)/MDW|0)*MDW)*9525;}
+  function remu(h){return Math.round(h*12700);}
+  const GEMU=cemu(4.5);
+  const cumC=[0];cwArr.forEach(w=>cumC.push(cumC[cumC.length-1]+cemu(w)));
+  const rowHtArr=[24,14,16,16,14,...Array(N).fill(18),14,14,13];
+  const cumR=[0];rowHtArr.forEach(h=>cumR.push(cumR[cumR.length-1]+remu(h)));
+
+  // EMU → 셀 위치
+  function toCell(x,y){
+    let col=0;while(col<cumC.length-2&&cumC[col+1]<=x)col++;
+    let row=0;while(row<cumR.length-2&&cumR[row+1]<=y)row++;
+    return{col,colOff:Math.max(0,x-cumC[col]),row,rowOff:Math.max(0,y-cumR[row])};
+  }
+
+  // ── 핵심 수정: from=바운딩박스 좌상단, to=우하단 ────────────────────────
+  function makeConn(x1,y1,x2,y2,color,lw,cid,arrow){
+    // 바운딩 박스 (항상 좌상단→우하단)
+    const ox=Math.min(x1,x2), oy=Math.min(y1,y2);
+    const ex=Math.max(x1,x2), ey=Math.max(y1,y2);
+    const cx=Math.max(ex-ox,5000), cy=Math.max(ey-oy,5000);
+    // flipH/V: 커넥터가 바운딩박스 안에서 어느 방향으로 그려지는지
+    const fH=x2<x1?' flipH="1"':'', fV=y2<y1?' flipV="1"':'';
+    // from = 좌상단 셀, to = 우하단 셀
+    const from=toCell(ox,oy), to=toCell(ex,ey);
+    const tail=arrow?'<a:tailEnd type="arrow" w="med" len="med"/>':'';
+    return`  <xdr:twoCellAnchor editAs="oneCell">
+    <xdr:from><xdr:col>${from.col}</xdr:col><xdr:colOff>${from.colOff}</xdr:colOff><xdr:row>${from.row}</xdr:row><xdr:rowOff>${from.rowOff}</xdr:rowOff></xdr:from>
+    <xdr:to><xdr:col>${to.col}</xdr:col><xdr:colOff>${to.colOff}</xdr:colOff><xdr:row>${to.row}</xdr:row><xdr:rowOff>${to.rowOff}</xdr:rowOff></xdr:to>
+    <xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${cid}" name="S${cid}"/><xdr:cNvCxnSpPr/><xdr:nvPr/></xdr:nvCxnSpPr>
+      <xdr:spPr><a:xfrm${fH}${fV}><a:off x="${ox}" y="${oy}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+        <a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom>
+        <a:ln w="${lw}"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill>${tail}</a:ln>
+      </xdr:spPr></xdr:cxnSp><xdr:clientData/></xdr:twoCellAnchor>`;
+  }
+
+  const shapes=[];let cid=100;
+
+  // 화살표
+  for(let i=0;i<N;i++){
+    for(const p of pp(T[i].p)){
+      const P=p-1;if(P<0||P>=N)continue;
+      const icp_e=cp[i]&&cp[P],color=icp_e?'882222':'2A4E6B';
+      const pe_P=Math.floor((ef[P]-1)/PERIOD),ps_I=Math.floor(es[i]/PERIOD);
+      const x1=cumC[LC+pe_P]+GEMU, y1=cumR[5+P]+remu(18)/2;
+      const x2=cumC[LC+ps_I],      y2=cumR[5+i]+remu(18)/2;
+      shapes.push(makeConn(x1,y1,x2,y2,'FFFFFF',50800,cid++,false)); // 흰 테두리
+      shapes.push(makeConn(x1,y1,x2,y2,color,25400,cid++,true));      // 유색 화살표
+    }
+  }
+
+  // ── S-Curve: 간트 행 범위 내 정확한 위치 ──────────────────────────────────
+  // Y 범위: 데이터 첫행 상단(0%) ~ 마지막행 하단(100%)
+  const yTop=cumR[R_DA];      // 0% = 맨 위
+  const yBot=cumR[R_DA+N];    // 100% = 맨 아래 (뒤집어서 0%가 아래)
+  const yRange=yBot-yTop;
+
+  // S-Curve: 좌하단(0%)에서 시작해서 우상단(100%)으로 올라가는 곡선
+  // p번째 기간이 끝난 시점: x = cumC[LC+p+1], y = yBot - cumPct[p]/100 * yRange
+  let prevX=cumC[LC],   prevY=yBot; // 시작: (gantt첫열 왼쪽, 맨아래) = 0%
+  let scCount=0;
+  for(let p=0;p<NP;p++){
+    const nextX=LC+p+1<cumC.length ? cumC[LC+p+1] : cumC[cumC.length-1];
+    const nextY=yBot - cumPct[p]/100*yRange;
+    if(nextX!==prevX||nextY!==prevY){
+      shapes.push(makeConn(prevX,prevY,nextX,nextY,'CC0000',38100,cid++,false));
+      scCount++;
+    }
+    prevX=nextX; prevY=nextY;
+  }
+
+  const drawingXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="${NS_XDR}" xmlns:a="${NS_A}">\n${shapes.join('\n')}\n</xdr:wsDr>`;
+
+  const NR='http://schemas.openxmlformats.org/package/2006/relationships';
+  const NRO='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const zip=new JSZip();
+  zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
+  zip.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NR}"><Relationship Id="rId1" Type="${NRO}/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
+  zip.file('xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${NS}" xmlns:r="${NRO}"><sheets><sheet name="CPM공정표" sheetId="1" r:id="rId1"/></sheets></workbook>`);
+  zip.file('xl/_rels/workbook.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NR}"><Relationship Id="rId1" Type="${NRO}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${NRO}/styles" Target="styles.xml"/><Relationship Id="rId3" Type="${NRO}/sharedStrings" Target="sharedStrings.xml"/></Relationships>`);
+  zip.file('xl/styles.xml',stylesXml);
+  zip.file('xl/sharedStrings.xml',ssXml());
+  zip.file('xl/worksheets/sheet1.xml',sheetXml);
+  zip.file('xl/worksheets/_rels/sheet1.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NR}"><Relationship Id="rId_draw1" Type="${NRO}/drawing" Target="../drawings/drawing1.xml"/></Relationships>`);
+  zip.file('xl/drawings/drawing1.xml',drawingXml);
+  const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`공사예정공정표_${fds(today).replace(/-/g,'')}.xlsx`;a.click();URL.revokeObjectURL(url);
+  return{tot,cp:cp.filter(Boolean).length,arrows:Math.floor(shapes.filter(s=>s.includes('tailEnd')).length),sc:scCount};
+}
+
+
+// 세션 인증 시에만 render 실행
+if(sessionStorage.getItem('cpm_auth')==='1') render();
+</script>
+</body>
+</html>
